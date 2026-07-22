@@ -12,7 +12,7 @@
 <link rel="icon" type="image/png" sizes="512x512" href="icon-512.png">
 <link rel="icon" type="image/png" sizes="192x192" href="icon-192.png">
 <link rel="apple-touch-icon" href="apple-touch-icon.png">
-<title>Al Farasha Al Khadhra — Sales Ledger</title>
+<title>Al Farasha — Sales Ledger</title>
 <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600;700&family=Noto+Naskh+Arabic:wght@400;500;600;700&family=Noto+Nastaliq+Urdu:wght@400;600;700&display=swap" rel="stylesheet">
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/jspdf-autotable/3.5.31/jspdf.plugin.autotable.min.js"></script>
@@ -20,7 +20,7 @@
 <script src="https://www.gstatic.com/firebasejs/10.12.2/firebase-database-compat.js"></script>
 <style>
 :root{
-  /* ── AL FARASHA AL KHADHRA ("The Green Butterfly") · GREEN / WHITE / RED SYSTEM ── */
+  /* ── AL FARASHA ("The Green Butterfly") · GREEN / WHITE / RED SYSTEM ── */
   --navy:      #103b2c;
   --navy2:     #175c44;
   --navy3:     #1f9d6e;
@@ -992,7 +992,7 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
       </svg>
     </div>
     <div class="hdr-brand-text">
-      <div class="name">Al Farasha Al Khadhra</div>
+      <div class="name">Al Farasha</div>
       <div class="sub">Building Material Trading</div>
     </div>
   </div>
@@ -1099,7 +1099,7 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
     </div>
   </div>
   <div class="drawer-ftr">
-    <span>Al Sajaa, Sharjah</span>
+    <span>UAE</span>
     <span id="drawer-status-text">Not synced</span>
   </div>
 </aside>
@@ -1952,13 +1952,13 @@ input[type=number]{ -moz-appearance:textfield; appearance:textfield; }
 /* ══════════════════════════ DATA LAYER (localStorage) ══════════════════════════ */
 const STORE_KEY = 'afkSalesLedgerDB_v1';
 const COMPANY = {
-  nameEn: 'Al Farasha Al Khadhra Building Material Trading LLC',
-  nameUr: 'الفراشہ الخضراء بلڈنگ میٹریل ٹریڈنگ ایل ایل سی',
-  trn: '104978939700003',
-  addressEn: 'Al Sajaa Industrial Area, Sharjah, UAE',
-  addressUr: 'الصجعہ صنعتی علاقہ، شارجہ، متحدہ عرب امارات',
-  phone1: '+971 54 421 5253',
-  phone2: '+971 55 548 3351'
+  nameEn: 'Al Farasha',
+  nameUr: 'الفراشہ',
+  trn: '100000000000000',
+  addressEn: 'Industrial Area, UAE',
+  addressUr: 'صنعتی علاقہ، متحدہ عرب امارات',
+  phone1: '+971 50 000 0000',
+  phone2: '+971 55 000 0000'
 };
 
 let DB = { customers: [], sales: [], payments: [], items: [], settings: [], dispatch: [], notifications: [], invoiceSeq: 1 };
@@ -3894,7 +3894,7 @@ function renderStatementDoc(cust, rows, opening, totalDebit, totalCredit, closin
           </div>
           <div class="stmt-brand-text ${isUr?'rtl':''}">
             <div class="cname">${escapeHtml(companyName)}</div>
-            <div class="ctag">${isUr?'بلڈنگ میٹریل ٹریڈنگ':'Building Material Trading LLC'}</div>
+            <div class="ctag">${isUr?'بلڈنگ میٹریل ٹریڈنگ':'Building Material Trading'}</div>
             <div class="cdetails">
               ${escapeHtml(companyAddress)}<br>
               ${isUr?'ٹی آر این':'TRN'}: ${COMPANY.trn}<br>
@@ -4142,7 +4142,7 @@ function renderInvoiceDoc(s, cust){
             </div>
           </div>
           <div class="afinv-footer-brand">
-            <div class="n">AL FARASHA AL KHADHRA</div>
+            <div class="n">AL FARASHA</div>
             <div class="t">Building Material Trading Since Establishment</div>
           </div>
         </div>
@@ -4535,7 +4535,7 @@ async function toggleBiometric(){
     const cred = await navigator.credentials.create({
       publicKey: {
         challenge: crypto.getRandomValues(new Uint8Array(32)),
-        rp: { name: 'Al Farasha Sales Ledger', id: location.hostname || 'localhost' },
+        rp: { name: 'Al Farasha', id: location.hostname || 'localhost' },
         user: { id: crypto.getRandomValues(new Uint8Array(16)), name:'owner', displayName:'Owner' },
         pubKeyCredParams: [{ type:'public-key', alg:-7 }, { type:'public-key', alg:-257 }],
         authenticatorSelection: { authenticatorAttachment:'platform', userVerification:'required', residentKey:'discouraged' },
@@ -5132,7 +5132,7 @@ function printDispatch(){
   
   doc.setFontSize(18);
   doc.setTextColor(16, 59, 44);
-  doc.text('AL FARASHA AL KHADHRA', 105, 20, { align: 'center' });
+  doc.text('AL FARASHA', 105, 20, { align: 'center' });
   doc.setFontSize(12);
   doc.text('DAILY DISPATCH SHEET — ' + fmtDate(date), 105, 30, { align: 'center' });
   
