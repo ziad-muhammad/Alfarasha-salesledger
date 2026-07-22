@@ -63,6 +63,31 @@ One deliberate design decision worth knowing: dispatch quantities sold (`qtySold
 
 See [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) for the full data architecture, Firebase sync model, and offline-write flow.
 
+## Screenshots
+
+<table>
+<tr>
+<td align="center"><img src="Screenshot/dashboard.png" width="280"/><br/><sub>Dashboard</sub></td>
+<td align="center"><img src="Screenshot/new-invoice-empty.png" width="280"/><br/><sub>New Invoice — Dispatch/Shop toggle</sub></td>
+<td align="center"><img src="Screenshot/new-invoice-filled.png" width="280"/><br/><sub>New Invoice — filled, VAT applied</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="Screenshot/invoice-preview.png" width="280"/><br/><sub>Invoice Preview / Print</sub></td>
+<td align="center"><img src="Screenshot/daily-dispatch.png" width="280"/><br/><sub>Daily Dispatch</sub></td>
+<td align="center"><img src="Screenshot/payments-received.png" width="280"/><br/><sub>Payments Received</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="Screenshot/customer-statement.png" width="280"/><br/><sub>Customer Statement — generate</sub></td>
+<td align="center"><img src="Screenshot/customer-statement-print.png" width="280"/><br/><sub>Customer Statement — print view</sub></td>
+<td align="center"><img src="Screenshot/items.png" width="280"/><br/><sub>Item Catalog</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="Screenshot/notifications.png" width="280"/><br/><sub>Notifications</sub></td>
+<td align="center"><img src="Screenshot/sidebar-menu.png" width="280"/><br/><sub>Drawer — backup, sync, PIN lock</sub></td>
+<td></td>
+</tr>
+</table>
+
 ## Documentation
 
 Full technical and feature documentation (data models, every screen, print system, security notes, known design decisions): [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md)
