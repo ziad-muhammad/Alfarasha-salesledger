@@ -1,0 +1,1243 @@
+# Al Farasha Al Khadhra — Sales Ledger PWA
+## Complete Technical & Feature Documentation
+
+> **File:** `indexalfarasha6.html`
+> **App Name:** Al Farasha Al Khadhra — Sales Ledger
+> **Built for:** Al Farasha Al Khadhra Building Material Trading LLC, Al Sajaa Industrial Area, Sharjah, UAE
+> **Architecture:** Single-file Progressive Web App (PWA) — offline-first, Firebase-synced
+
+---
+
+## Table of Contents
+
+1. [What This App Is](#1-what-this-app-is)
+2. [Technology Stack](#2-technology-stack)
+3. [Data Architecture](#3-data-architecture)
+4. [Firebase Integration & Offline Sync](#4-firebase-integration--offline-sync)
+5. [App Layout & Navigation](#5-app-layout--navigation)
+6. [Design System & Branding](#6-design-system--branding)
+7. [Feature: Dashboard](#7-feature-dashboard)
+8. [Feature: Customers](#8-feature-customers)
+9. [Feature: Sales Invoices](#9-feature-sales-invoices)
+10. [Feature: Payments](#10-feature-payments)
+11. [Feature: Customer Statements](#11-feature-customer-statements)
+12. [Feature: Daily Dispatch](#12-feature-daily-dispatch)
+13. [Feature: Item Catalog](#13-feature-item-catalog)
+14. [Feature: Notifications](#14-feature-notifications)
+15. [Feature: Global Search](#15-feature-global-search)
+16. [Feature: App Lock (PIN + Biometric)](#16-feature-app-lock-pin--biometric)
+17. [Feature: Backup & Restore](#17-feature-backup--restore)
+18. [Feature: Invoice Print/PDF Preview](#18-feature-invoice-printpdf-preview)
+19. [Responsive & Mobile Design](#19-responsive--mobile-design)
+20. [PWA & Install Features](#20-pwa--install-features)
+21. [Print System](#21-print-system)
+22. [Utility Functions & Core Logic](#22-utility-functions--core-logic)
+23. [Security Considerations](#23-security-considerations)
+24. [Known Design Decisions & Bug Fixes](#24-known-design-decisions--bug-fixes)
+
+---
+
+## 1. What This App Is
+
+Al Farasha Sales Ledger is a **fully self-contained, single HTML file** that functions as a complete business accounting and sales management system for a building materials trading company in Sharjah, UAE.
+
+It is designed specifically for the way this business operates — a **dispatch-and-shop hybrid** model where salesmen carry goods out on delivery (dispatch) and a retail shop also sells directly to walk-in customers. The app manages:
+
+- Customer accounts and credit ledgers
+- Sales invoices (with optional VAT 5%)
+- Payment collection tracking
+- Daily dispatch (van loading / stock tracking)
+- Customer account statements (English and Urdu)
+- Notifications for overdue accounts and credit limits
+
+The entire app lives in **one HTML file** — no backend server, no npm, no build step. Open it in a browser and it works. When installed as a PWA, it becomes a native-like app on any phone or desktop.
+
+---
+
+## 2. Technology Stack
+
+### Core Language
+- Pure HTML5, CSS3, and Vanilla JavaScript (no frameworks)
+- No build tools, no node_modules, no compilation needed
+
+### External Libraries (CDN)
+- **jsPDF v2.5.1** — for generating PDF files (dispatch sheets)
+- **jsPDF-AutoTable v3.5.31** — for formatted tables in PDFs
+- **Firebase SDK v10.12.2 (compat)** — `firebase-app-compat.js` and `firebase-database-compat.js`
+
+### Firebase Services Used
+- **Firebase Realtime Database** (NOT Firestore) — for live multi-device sync
+- Firebase is optional; the app works completely offline without it
+
+### Fonts (Google Fonts)
+- **Inter** — primary UI font
+- **Space Grotesk** — display/heading font
+- **JetBrains Mono** — monospace for numbers
+- **Noto Naskh Arabic** — Arabic/Urdu body text
+- **Noto Nastaliq Urdu** — Urdu headings (Nastaliq calligraphic style)
+
+### Storage
+- **localStorage** — primary data store and offline cache (`key: afkSalesLedgerDB_v1`)
+- **sessionStorage** — unlock state within a browser session (`afkUnlocked`)
+- **Firebase Realtime Database** — cloud backup and multi-device sync
+
+### PWA Features
+- Service Worker (registered via JS, references an external `sw.js`)
+- `manifest.json` reference for installability
+- App icons at 192×192 and 512×512
+- Apple touch icon
+- Theme color `#103b2c` (dark green matching the brand)
+- `apple-mobile-web-app-capable` and `mobile-web-app-capable` meta tags
+
+---
+
+## 3. Data Architecture
+
+### In-Memory Database Object
+
+The app maintains a single global `DB` object that is the in-memory working copy of all data:
+
+```javascript
+let DB = {
+  customers:     [],   // Customer records
+  sales:         [],   // Invoice/sale records
+  payments:      [],   // Payment records
+  items:         [],   // Product catalog items
+  settings:      [],   // App settings (PIN hash, etc.)
+  dispatch:      [],   // Daily dispatch records
+  notifications: [],   // In-app alert log
+  invoiceSeq:    1     // Auto-increment invoice counter
+};
+```
+
+This object is saved to `localStorage` on every change via `saveDB()`, and synced to Firebase via `fbWrite()` / `fbRemove()`.
+
+### Data Models
+
+**Customer record:**
+```json
+{
+  "id": "id...",
+  "nameEn": "English Name",
+  "nameUr": "اردو نام",
+  "phone": "+971...",
+  "trn": "VAT Tax Registration Number",
+  "addressEn": "English address",
+  "addressUr": "عربی پتہ",
+  "opening": 0,
+  "creditDays": 7,
+  "creditLimit": 5000,
+  "isCashSale": false,
+  "vatEnabled": false
+}
+```
+
+**Sale/Invoice record:**
+```json
+{
+  "id": "id...",
+  "invoiceNo": "INV-001",
+  "date": "2025-07-22",
+  "customerId": "id...",
+  "items": [{ "desc": "Item name", "qty": 10, "rate": 25.00 }],
+  "subtotal": 250.00,
+  "vatApplied": false,
+  "vatAmount": 0,
+  "total": 250.00,
+  "paidAmount": 100.00,
+  "paymentMethod": "Cash",
+  "linkedPaymentId": "id...",
+  "saleType": "dispatch",
+  "notes": "",
+  "createdAt": 1234567890000,
+  "_overdueNotified": false
+}
+```
+
+**Payment record:**
+```json
+{
+  "id": "id...",
+  "customerId": "id...",
+  "date": "2025-07-22",
+  "amount": 500.00,
+  "method": "Cash",
+  "note": "Cheque #1234",
+  "payType": "dispatch",
+  "fromSale": false,
+  "saleId": null,
+  "createdAt": 1234567890000
+}
+```
+
+**Dispatch record:**
+```json
+{
+  "id": "id...",
+  "date": "2025-07-22",
+  "itemName": "Item Name",
+  "qtyIssued": 50,
+  "qtySold": 30,
+  "lastUpdated": 1234567890000
+}
+```
+
+**Notification record:**
+```json
+{
+  "id": "id...",
+  "type": "overdue | duplicate | credit-limit | wrong-password",
+  "title": "Alert title",
+  "sub": "Detail text",
+  "ts": 1234567890000,
+  "read": false,
+  "refId": "linked record id"
+}
+```
+
+### The Special Cash Sale Customer
+
+A built-in virtual customer with a fixed ID `CASH_SALE_ID = 'CASH_SALE_ENTITY'` is always present in the database. This represents walk-in cash customers. It is:
+
+- Created automatically via `ensureCashSaleCustomer()` on every app start and on every Firebase sync
+- Never deletable or renameable
+- Excluded from duplicate invoice checking (walk-ins can buy the same things on the same day)
+- Shown with a "Cash" tag in all dropdowns
+- Always treated as paid in full at time of sale
+
+### Unique ID Generation
+
+```javascript
+function uid() {
+  return 'id' + Date.now().toString(36) + Math.random().toString(36).slice(2, 7);
+}
+```
+
+IDs are URL-safe strings combining a timestamp (base-36) and random suffix — collision-proof without requiring a backend.
+
+---
+
+## 4. Firebase Integration & Offline Sync
+
+### Connection Architecture
+
+Firebase Realtime Database is used for multi-device sync. It is entirely optional — if Firebase is unreachable, the app works offline using `localStorage` as the source of truth.
+
+The Firebase connection state is monitored via `.info/connected` (not a fake check — this is the actual Firebase socket state) which drives the sync status dot visible in the header and drawer.
+
+### Offline Queue
+
+Every write that cannot reach Firebase (offline, or write fails) is saved to a persistent queue in `localStorage` under the key `afkSyncQueueV1`.
+
+```javascript
+function queuePending(action, collectionName, id, obj) {
+  // Deduplicates by collection+id — a later write replaces an earlier one for the same record
+  syncQueue = syncQueue.filter(q => !(q.collection===collectionName && q.id===id));
+  syncQueue.push({ action, collection: collectionName, id, obj: obj||null, ts: Date.now() });
+  saveSyncQueueToDisk();
+}
+```
+
+When the device comes back online, `flushSyncQueue()` replays all queued operations. A `window.addEventListener('online', ...)` triggers this automatically.
+
+### Firebase Real-Time Subscription
+
+On connection, all 7 collections are subscribed with `.on('value', ...)`. Any change from another device appears immediately. On receiving new data:
+
+1. The local `DB` array is replaced with the cloud version
+2. `saveDB()` updates the localStorage cache
+3. The active page is re-rendered live
+
+### `undefined` Safety — The `sanitizeForFirebase()` Function
+
+Firebase Realtime Database **silently fails** (or throws) when any nested property is JavaScript `undefined`. Older records may have fields that didn't exist at the time they were saved, leaving `undefined` when accessed. The app recursively replaces all `undefined` with `null` before any write:
+
+```javascript
+function sanitizeForFirebase(val) {
+  if (val === undefined) return null;
+  if (Array.isArray(val)) return val.map(sanitizeForFirebase);
+  if (val && typeof val === 'object') {
+    const out = {};
+    Object.keys(val).forEach(k => { out[k] = sanitizeForFirebase(val[k]); });
+    return out;
+  }
+  return val;
+}
+```
+
+This makes writes forward-compatible — old records never break new fields.
+
+---
+
+## 5. App Layout & Navigation
+
+### Layout Modes
+
+The app has two distinct layouts depending on screen width:
+
+**Desktop (> 980px):**
+- Sticky top header (64px tall)
+- Fixed left sidebar (222px) with navigation items
+- Main content area (flex-1)
+
+**Mobile (≤ 980px):**
+- Sticky top header
+- Sidebar is hidden
+- Fixed bottom navigation bar with 5 tabs
+- A floating red `+` button (center tab, elevated above the nav bar) for quick invoice entry
+
+### Page System
+
+All pages (`<section class="page">`) exist in the DOM simultaneously but only one has the `.active` class at a time. `showPage(name)` manages switching. Each page fades in with a CSS animation:
+
+```css
+@keyframes fadeIn {
+  from { opacity: 0; transform: translateY(6px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+```
+
+### Pages
+
+| Page ID | Name | Purpose |
+|---|---|---|
+| `dashboard` | Home | KPI summary, overdue alerts, top debtors, recent activity |
+| `customers` | Customers | Customer list, search, credit details |
+| `customer-form` | Add/Edit Customer | Full customer data entry form |
+| `sales` | Sales Invoices | Invoice list with filters |
+| `invoice-form` | New/Edit Invoice | Multi-item invoice entry |
+| `payments` | Payments | Payment list with filters |
+| `payment-form` | Record Payment | Payment entry form |
+| `statement` | Statement | Customer account statement generator |
+| `dispatch` | Daily Dispatch | Van stock tracking by date |
+| `dispatch-issue` | Issue Stock | Add/edit dispatch item |
+| `item-details` | Item Details | Sales history drill-down for one item |
+| `items` | Items Catalog | Saved product list |
+| `notifications` | Notifications | Alerts inbox |
+| `pin-setup` | PIN Setup | Create/change PIN |
+
+### Side Drawer (Mobile)
+
+A slide-in overlay drawer accessible via the hamburger menu icon. Contains:
+- Brand logo and company info
+- Sync status indicator (green/grey dot)
+- Quick navigation links
+- Security options (PIN setup, biometric toggle, remove lock)
+- Device alert toggle
+- Export/Import backup buttons
+- Install app prompt (if applicable)
+
+---
+
+## 6. Design System & Branding
+
+### Color Palette (CSS Variables)
+
+The design uses a **green / white / red** system representing the brand identity of "Al Farasha Al Khadhra" (The Green Butterfly):
+
+```css
+/* Brand Greens */
+--navy:      #103b2c;   /* Darkest green — header, active states */
+--navy2:     #175c44;   /* Mid green */
+--navy3:     #1f9d6e;   /* Lighter green — accents, links */
+--navy-glow: rgba(31,157,110,.16);  /* Subtle green background tint */
+
+/* Backgrounds */
+--bg:        #f3f8f5;   /* Page background — very light green-white */
+--surface:   #ffffff;
+--surface2:  #eef5f0;
+--surface3:  #e2eee6;
+--border:    rgba(13,53,35,.10);
+
+/* Semantic Red (action / danger / sale amounts) */
+--red:       #b91c2c;
+--red-lt:    rgba(185,28,44,.09);
+--red2:      #d4283a;
+
+/* Money colours */
+--green:     #16824f;   /* Credit / payments received */
+--green-lt:  rgba(22,130,79,.10);
+--amber:     #b5790a;   /* Warning / due today */
+--amber-lt:  rgba(181,121,10,.10);
+
+/* Text hierarchy */
+--t1: #0d1f17;   /* Primary text */
+--t2: #4c5f56;   /* Secondary text */
+--t3: #889b92;   /* Muted/label text */
+```
+
+### Typography
+
+- **UI font:** Inter (clean, readable, professional)
+- **Urdu/Arabic font:** Noto Naskh Arabic (body), Noto Nastaliq Urdu (headings) — these activate in RTL statement mode
+- **Monospace:** Inter (used for all numbers, amounts, invoice numbers)
+
+### Border Radius
+
+- Standard: `--radius: 12px`
+- Large cards: `--radius-lg: 18px`
+
+### Shadows
+
+- Standard: subtle 2-layer shadow for cards
+- Large: `--shadow-lg` for modals, invoice preview
+
+### Invoice Color Accent
+
+The invoice document uses a gradient top-bar: `var(--navy) → var(--navy3) → var(--amber)` — navy to green to gold. This communicates formality while staying on-brand.
+
+---
+
+## 7. Feature: Dashboard
+
+### Overview Panel (Hero Card)
+
+The dashboard opens with a full-width dark-green summary card showing 5 live KPIs. Each is independently computed to prevent double-counting:
+
+| KPI | What It Means | How Computed |
+|---|---|---|
+| **Total Sales** | All invoices raised ever | `sum(DB.sales[].total)` |
+| **Total Received** | Money collected LATER against old dues | `sum(payments where !fromSale && !saleId)` |
+| **Outstanding** | What customers still owe overall | `openingBalance + totalSales - allPayments` |
+| **Cash in Hand** | Money received at the moment of sale | `sum(DB.sales[].paidAmount)` |
+| **Customers** | Total active customer count | `DB.customers.length` |
+
+The separation between "Cash in Hand" and "Total Received" is the most important uniqueness here. A payment made at the time of saving an invoice (`paidAmount`) is tagged with `fromSale: true` in the payments table. These are excluded from "Total Received" because they were never an outstanding balance — they were paid on the spot. This prevents the same money from appearing in two places.
+
+### Needs Attention Panel
+
+Automatically highlights:
+
+- **Overdue invoices** (past credit due date, still have a balance) — shown in red with total amount
+- **Due today** invoices — shown in amber with total amount
+- **All clear** — shown in green if nothing needs attention
+
+Tapping an alert navigates directly to the filtered Sales page showing only those specific invoices.
+
+### Top Debtors (Ranked Bar Chart)
+
+Shows up to 5 customers with the highest outstanding balance, each with a proportional progress bar. The longest bar = highest debt = 100% bar width. Others are proportionally shorter.
+
+### Recent Activity Feed
+
+Shows the last 5 events across sales and payments, sorted by `createdAt` timestamp. Displays:
+- Event type badge (Invoice / Payment)
+- Invoice number or payment reference
+- Amount (red for invoices, green for payments)
+- Customer name
+- Date
+
+### Dashboard Dispatch Widget
+
+If dispatch records exist for today, a mini live table appears on the dashboard showing each dispatched item with a green progress bar: `Sold / Issued`. The bar turns red if sold exceeds issued (over-sold). Tapping any row navigates to that item's detail page.
+
+---
+
+## 8. Feature: Customers
+
+### Customer List
+
+All customers are displayed as a filterable, sortable table. Features:
+
+- **Search** — by English name, phone, or TRN
+- **Sort modes** — Name (A-Z), Balance (highest first)
+- Per-row display of: outstanding balance, sales total, payments total, opening balance, credit days
+
+### Opening Balance
+
+Every customer can have an opening balance — the amount they owed before the app started being used. This is included in all balance calculations:
+
+```javascript
+function customerTotals(custId) {
+  const sales    = sum of all invoices for this customer
+  const payments = sum of all payments for this customer
+  const opening  = customer.opening (manually entered)
+  const balance  = opening + sales - payments
+  return { sales, payments, opening, balance };
+}
+```
+
+### Credit System
+
+Each customer has:
+- **Credit Days** — how many days after invoice date until payment is due
+- **Credit Limit** — maximum outstanding balance allowed (optional)
+
+Credit terms are per-customer, not global. A customer with 0 credit days means payment is due on the same day.
+
+### Invoice Status Logic
+
+The `computeInvoiceStatus(sale, customer)` function determines the state of each invoice:
+
+```javascript
+// If no balance → "paid"
+// If balance > 0 and creditDays > 0:
+//   dueDate = sale.date + creditDays
+//   if today > dueDate → "overdue" (with days count)
+//   if today === dueDate → "due"
+// If creditDays = 0 → immediately due
+```
+
+### Bilingual Customer Names
+
+Every customer has both an English name (`nameEn`) and an Urdu name (`nameUr`). The function `custDisplayName(cust)` always prefers the Urdu name if it exists, falling back to English. This means all UI labels, statements, and invoice addresses show the Urdu name if filled.
+
+### Customer Form Fields
+
+- English name (required)
+- Urdu/Arabic name (optional, enables bilingual display)
+- Phone number
+- TRN (Tax Registration Number, for VAT invoicing)
+- English address
+- Urdu/Arabic address
+- Opening balance
+- Credit days
+- Credit limit
+- VAT enabled (per-customer — enables VAT 5% on invoices automatically)
+
+### Quick Add
+
+In any customer dropdown (invoice form, payment form, statement selector), typing a name that doesn't exist shows a `+ Add "X" as new customer` option. Tapping it creates the customer instantly and selects them — without leaving the form. The customer can be fully detailed later from the Customers page.
+
+---
+
+## 9. Feature: Sales Invoices
+
+### Invoice Entry Form
+
+The invoice form (`page-invoice-form`) is a full-page section (not a floating modal) with:
+
+**Sale Type Toggle (Dispatch / Shop)**
+This is a sliding pill toggle — the most prominent feature of the entry form. It determines:
+- **Dispatch** — goods went out on the van. Qty sold deducts from the daily dispatch balance for this item.
+- **Shop** — sold from the retail store. Does NOT touch the dispatch balance.
+
+The toggle has an animated sliding knob. Green for Dispatch, amber for Shop.
+
+**Customer Selection**
+Uses the reusable combo widget (`comboRender`, `comboOpen`, `comboSelect`) — a text input that searches customers live as you type, and shows a scrollable dropdown. Supports quick-add inline.
+
+**Auto-fill for Cash Sale customer:**
+When "Cash Sale" is selected, a note appears saying the sale will be recorded as paid in full immediately. The payment section pre-fills the total.
+
+**Dynamic Line Items**
+Multiple line items can be added. Each item row has:
+- Description (text input with datalist autocomplete from the items catalog)
+- Quantity
+- Rate (price per unit, in AED)
+- Row total (qty × rate, computed live)
+- A delete button
+
+Items in the datalist come from `DB.items` (the catalog). If a typed description matches a saved item, the rate auto-fills. A save button on each row lets users add new items to the catalog directly from the invoice.
+
+**Item Normalization for Dispatch Matching**
+Item names are matched case-insensitively and stripped of leading/trailing spaces via `normItemName()`. This is critical — `"Blade "` and `"blade"` must be treated as the same item for dispatch reconciliation.
+
+**VAT Toggle**
+A checkbox per invoice. When checked:
+- Subtotal = sum of all item totals
+- VAT 5% is calculated on the subtotal
+- Invoice total = subtotal + VAT
+- The invoice label changes to "Tax Invoice" and the company TRN appears
+
+**Partial Payment on Invoice Save**
+When saving an invoice, users can optionally record an immediate payment:
+- Enter the amount paid now
+- Select payment method (Cash, Bank Transfer, Cheque, Card)
+- Balance due is shown live: `total − paidAmount`
+- "Mark Fully Paid" button auto-fills the total as paid
+
+When an invoice is saved with a partial or full payment, **a linked payment record is created automatically** (`fromSale: true, saleId: ...`). If the invoice is later edited and the paid amount changes, the linked payment is updated. If the paid amount becomes zero, the linked payment is deleted.
+
+### Invoice Status Badges
+
+Each invoice in the list shows a colored badge:
+- **Paid** (green) — `paidAmount >= total`
+- **Partial** (amber) — `0 < paidAmount < total`
+- **Due** (red/grey) — `paidAmount = 0`
+
+Plus a status badge computed from credit terms:
+- **Overdue** — past due date with balance
+- **Due Today** — due date is today
+
+### Invoice Filters
+
+The sales list supports simultaneous filtering by:
+- Free text search (customer name, invoice number)
+- Item description search
+- Customer dropdown
+- Date range (from / to)
+- Quick date buttons: Today, Yesterday, 2 Days Ago, 3 Days Ago, This Week, This Month, Last Month, All Time
+- Sale type: All / Dispatch / Shop
+- Status: All / Overdue / Due Today
+
+**Item Search Summary Panel**
+When filtering by item description, a summary card appears above the invoice list showing: which customers bought that item, how many units each bought, and the total value — all within the selected date range.
+
+### Invoice Auto-Numbering
+
+Invoice numbers use a sequential counter (`DB.invoiceSeq`) stored in the database, generating numbers like `INV-001`, `INV-002`, etc. The counter increments on each new invoice and persists across sessions.
+
+### Duplicate Detection
+
+After every save, `checkDuplicateInvoice(sale)` checks if the same customer already has another invoice on the same date. If so, a notification is added to the in-app inbox. It never blocks saving — it only warns.
+
+Exception: the Cash Sale customer is exempt, since multiple walk-in sales on the same day are normal.
+
+### Invoice Delete with Linked Payment Cleanup
+
+Deleting an invoice also deletes its linked payment (the one auto-created at the time of saving, tagged `fromSale: true`) via `deleteSale()`. This prevents orphaned payment records from inflating the "money collected" figures.
+
+---
+
+## 10. Feature: Payments
+
+### Payment Types
+
+Payments are tagged as either **Dispatch** or **Shop** type — matching how the money was collected:
+- **Dispatch** — salesman recovered money out on delivery
+- **Shop** — customer paid at the store
+
+This tag is used for filtering on the Payments page and shows in the statement.
+
+### Payment Filters
+
+- Free text (customer name, reference)
+- Date range with quick buttons
+- Via toggle: All / Dispatch / Shop
+- Customer dropdown
+
+### Payment Page KPIs
+
+When filtered, a summary bar shows:
+- Total payments in the selected range (Dispatch and Shop separately)
+- Total payments combined
+
+### Payment Methods
+
+Cash, Bank Transfer, Cheque, Card — stored as text per payment.
+
+### Linked vs. Standalone Payments
+
+Payments have two origins:
+1. **Linked payments** (`fromSale: true`) — auto-created when saving an invoice with `paidAmount > 0`. These cannot be edited from the Payments page — they must be edited by changing the `paidAmount` on the parent invoice.
+2. **Standalone payments** — manually recorded against a customer's existing outstanding balance. These are the ones that appear in the "Total Received" KPI on the dashboard.
+
+---
+
+## 11. Feature: Customer Statements
+
+### Language Toggle
+
+Statements can be generated in two languages by toggling the `stmt-doc.rtl` class:
+- **English** — left-to-right layout, Inter font, standard header
+- **Urdu** — right-to-left layout (`direction: rtl`), Noto Naskh Arabic body font, Noto Nastaliq Urdu headings, bilingual customer name and company name
+
+### Statement Modes
+
+**Single customer statement**
+Shows all transactions (sales and payments) for one customer in the selected date range with a running balance column.
+
+**All Customers statement**
+Shows all transactions across all customers in the selected range in a combined table (with a Party column).
+
+### Statement Columns
+
+- Date
+- Type (Sale / Payment)
+- Reference (invoice number or payment note)
+- Description (item list summary)
+- Due Date (for sales, based on credit days)
+- Status badge (Paid / Partial / Due / Overdue)
+- Debit (sale amounts — in red styling)
+- Credit (payment amounts — in green styling)
+- Running Balance
+
+### Running Balance Logic
+
+The balance column is a cumulative running total: `opening + sum(sales) − sum(payments)` as each row appears chronologically. The final row shows the total outstanding.
+
+### Print-Ready Design
+
+The statement section uses `.stmt-table-scroll { overflow-x: auto }` for scrolling on screen, but on print (`@media print`) this is removed so all columns print on the page without being clipped.
+
+---
+
+## 12. Feature: Daily Dispatch
+
+### What Dispatch Tracks
+
+The dispatch module manages the van loading / unloading cycle:
+
+1. **Morning** — supervisor loads the van. Each item is entered as `Issue Stock` (item name + quantity issued).
+2. **During the day** — salesmen make sales via the invoice form (Dispatch type).
+3. **End of day** — the dispatch table shows exactly: Issued vs. Sold vs. Balance to Return.
+
+### Dispatch Table
+
+Shows each item for the selected date:
+- Item name
+- Qty Issued (what went on the van)
+- Qty Sold (derived from invoices — automatically recomputed)
+- Balance to Return (Issued − Sold)
+
+The balance turns green when it reaches zero (all stock accounted for). Red when negative (oversold — data entry error).
+
+### Sync Logic (`syncDispatchForDate`)
+
+This is one of the most carefully engineered parts of the app. The `qtySold` value on each dispatch record is **not stored in Firebase** — it is derived from invoices on every recalculation.
+
+Why? Because if `qtySold` were stored and then recalculated on load from an old offline queue, it could silently overwrite a newer value. The bug this fixed was:
+- User edits dispatch qty (e.g. 20 → 40)
+- `renderDashboard()` was running `syncDispatchForDate()` which used to call `fbWrite(dispatch, d)`
+- Since `fbReady` was false at that moment, the OLD value (20) was queued
+- Minutes later, `flushSyncQueue()` replayed the queue and overwrote the new 40 back to 20
+
+The fix: `qtySold` is updated in memory only and **never written back to Firebase** from this function. Only `saveDispatchItem()` (which handles the user's explicit quantity edit) is allowed to write `qtyIssued`.
+
+### Duplicate Row Merging
+
+Firebase sync echoes could sometimes create two dispatch rows for the same item+date. The `syncDispatchForDate` function detects and merges these before reconciliation, summing their `qtyIssued` values.
+
+### Shop Sales Exclusion
+
+Sales of type `shop` are explicitly excluded from dispatch reconciliation. Only `dispatch`-type sales deduct from the van's stock. Sales without a `saleType` (from before the toggle existed) are treated as dispatch-type for backward compatibility.
+
+### Item Name Normalization
+
+Matching between invoice item descriptions and dispatch item names is always done via:
+
+```javascript
+function normItemName(n) {
+  return String(n || '').trim().toLowerCase();
+}
+```
+
+This means `"Steel Blade"`, `"  steel blade  "`, and `"STEEL BLADE"` all match the same dispatch entry.
+
+### Dispatch Detail (Item Drill-Down)
+
+Tapping any row in the dispatch table opens `page-item-details` showing:
+- Total Qty Issued (for the selected date range)
+- Total Sold (across all invoices)
+- Remaining (Issued − Sold)
+- Total Amount (AED)
+- A full table: Customer | Date | Invoice # | Qty | Rate | Amount
+
+The date range can be changed. Quick range buttons: Today, Yesterday, This Month, Last Month, All Time.
+
+### Dispatch PDF Export
+
+The dispatch table can be exported as a PDF using jsPDF+AutoTable. The PDF includes:
+- Company header
+- Date label
+- Formatted table: Item | Qty Issued | Qty Sold | Balance to Return
+- Green header row (matching brand)
+
+---
+
+## 13. Feature: Item Catalog
+
+### What Items Are
+
+The items catalog (`DB.items`) is a reusable list of product names (and optionally default rates). Items appear:
+- As autocomplete suggestions in the invoice description field
+- In the dispatch issue picker
+
+### Adding Items
+
+Items can be added:
+1. From the **Items page** — via a dedicated add/edit form
+2. Directly from an **invoice line item** — the `+` save button next to each description adds it to the catalog
+3. During **dispatch issue** — by searching for items from the catalog
+
+### Items Page
+
+Displays all saved items in a sortable table. Each item shows its name. Items can be edited or deleted.
+
+---
+
+## 14. Feature: Notifications
+
+### Notification Types
+
+| Type | Trigger | Color |
+|---|---|---|
+| `overdue` | An invoice passes its credit due date | Red |
+| `duplicate` | Two invoices for same customer on same day | Amber |
+| `credit-limit` | Customer's outstanding exceeds their credit limit | Red |
+| `wrong-password` | Incorrect PIN entered | Red |
+
+### Overdue Notifications — Rate Limiting
+
+Overdue checks run:
+- 3 seconds after app start
+- Every 15 minutes while the app is open
+
+To prevent flooding, each invoice carries a `_overdueNotified` flag:
+- Set to `true` when the notification is first created, persisted to Firebase
+- The notification is not created again if `_overdueNotified === true`
+- If the invoice is later paid (balance drops to zero), `_overdueNotified` is reset to `false` so a potential future relapse will notify again
+
+### Notification Deduplication
+
+The `addNotification()` function checks if a notification with the same `type + refId` already exists within the last 6 hours before creating a new one. This prevents duplicate alerts from repeated check runs.
+
+### In-App Badge
+
+The bell icon in the header shows a red badge with unread count. Navigating to the Notifications page marks all as read and clears the badge.
+
+### Notification Routing
+
+Tapping a notification opens the exact record it refers to:
+- Overdue / Duplicate → `focusInvoice(id)` — clears all filters, finds the invoice in the list, scrolls to it, flashes it with a highlight animation
+- Credit Limit → `focusCustomer(id)` — searches for the customer
+
+### Startup Deduplication
+
+`dedupeExistingNotifications()` runs once at startup to clean up any duplicate notifications that may have accumulated in Firebase before the deduplication logic was added.
+
+### Device (Push) Notifications
+
+If the user grants permission, the app sends operating-system-level notifications (like WhatsApp messages):
+
+- Uses `Notification.requestPermission()` to ask for permission
+- Sends via `ServiceWorkerRegistration.showNotification()` (preferred) or `new Notification()` fallback
+- A daily "overdue summary" fires around 12pm noon (checked every 5 minutes)
+- Periodic Background Sync registers `overdue-daily` with a 12-hour minimum interval, so the service worker can check even when the app is fully closed (supported in installed PWAs on Chrome/Samsung Internet)
+
+---
+
+## 15. Feature: Global Search
+
+### Search Overlay
+
+Accessible via the search icon in the header. Opens a full-screen overlay with a search input.
+
+### What Is Searched
+
+- **Customers** — by English name, phone, TRN
+- **Invoices** — by invoice number, customer name
+- **Payments** — by note/reference, customer name
+- **Saved Items** — by item name
+
+All searches are case-insensitive substring matches. Results are capped at 8 per category.
+
+### Search Results
+
+Results are grouped by category with section headers (Customers / Invoices / Payments / Saved Items). Tapping a result:
+- Customers → opens the customer edit form
+- Invoices → opens the invoice edit form
+- Payments → opens the payment edit form
+- Items → opens the item edit form
+
+---
+
+## 16. Feature: App Lock (PIN + Biometric)
+
+### Architecture
+
+The lock system has two layers:
+1. **PIN** — hashed with SHA-256 using `crypto.subtle.digest()`. The hash is stored in `DB.settings[id='lock'].passwordHash` and synced to Firebase. This means the same PIN works across all devices signed into the same Firebase project.
+2. **Biometric** — stored as a WebAuthn credential ID in `localStorage` on each device separately. Biometric is a per-device shortcut to the PIN-protected account.
+
+### Lock Screen
+
+A full-page overlay (`#lock-screen`) with:
+- Dot display (filled dots for each digit typed)
+- Numeric keypad
+- Biometric button (if enrolled)
+- Text input fallback (for longer passwords or accessibility)
+
+### PIN Flow
+
+The PIN is a variable-length numeric code (minimum 4 digits). The length is stored alongside the hash so the lock screen can auto-submit once enough digits are entered.
+
+1. User types digits → dots fill in
+2. When digit count matches `lock.pinLength` → `submitLockPin()` is called automatically
+3. PIN is SHA-256 hashed in-browser and compared to stored hash
+4. Match → `sessionStorage.setItem('afkUnlocked', 'yes')` and lock screen hides
+5. Mismatch → dots shake, error text shown, count cleared, `logWrongPinAttempt()` adds a notification
+
+### Biometric Flow
+
+Uses the **WebAuthn API** (`navigator.credentials.create()` / `navigator.credentials.get()`):
+
+**Enrollment:**
+```javascript
+await navigator.credentials.create({ publicKey: { ... authenticatorSelection: { authenticatorAttachment: 'platform' } } })
+// Stores credential rawId in localStorage as base64
+```
+
+**Authentication:**
+```javascript
+await navigator.credentials.get({ publicKey: { allowCredentials: [{ id: base64ToBuf(credId) }] } })
+// If successful, calls unlockSuccess()
+```
+
+On the lock screen, biometric is auto-triggered after 400ms if a credential is enrolled, so the user often just looks at the phone and it unlocks — identical to native app behaviour.
+
+The biometric button label dynamically detects the device:
+- iOS/iPadOS → "Use Face ID / Touch ID"
+- macOS → "Use Touch ID"
+- Android → "Use Fingerprint / Face Unlock"
+- Other → "Use Biometric Unlock"
+
+### Visibility-Based Re-Locking
+
+```javascript
+document.addEventListener('visibilitychange', () => {
+  if (document.hidden) {
+    sessionStorage.removeItem('afkUnlocked');
+  } else {
+    maybeShowLockScreen();
+  }
+});
+```
+
+The app re-locks every time the tab/app is hidden (backgrounded). Returning to it always re-triggers the lock screen. This matches the behaviour of banking apps.
+
+### PIN Setup (Multi-Stage)
+
+The PIN setup page (`page-pin-setup`) uses a 3-stage flow:
+
+- **Stage 0** — If a PIN already exists: enter current PIN to verify identity
+- **Stage 1** — Enter new PIN (minimum 4 digits)
+- **Stage 2** — Confirm new PIN (must match Stage 1 exactly)
+
+On success, the hash is saved to `DB.settings` and written to Firebase, so the new PIN immediately applies on all synced devices.
+
+### Wrong PIN Logging
+
+Every wrong PIN attempt:
+1. Increments `afkWrongAttemptCount` in localStorage
+2. Creates a `wrong-password` notification with the attempt number and timestamp
+3. Makes the dot display shake (CSS animation)
+
+This gives the owner visibility into unauthorized access attempts.
+
+---
+
+## 17. Feature: Backup & Restore
+
+### Export
+
+`exportBackupJson()` creates a JSON blob containing:
+```json
+{
+  "customers": [...],
+  "sales": [...],
+  "payments": [...],
+  "items": [...],
+  "exportedAt": "ISO timestamp"
+}
+```
+
+The file is named `AlFarasha_Backup_YYYY-MM-DD.json` and downloaded to the device.
+
+### Restore
+
+`restoreBackupJson(file)` reads a backup JSON file, confirms with the user, replaces all data in `DB`, saves to localStorage, and re-pushes everything to Firebase so all devices pick up the restored data.
+
+**Dispatch and notifications are intentionally not included** in backups — dispatch is operational/daily data that would be stale in a restore scenario, and notifications are ephemeral alerts.
+
+---
+
+## 18. Feature: Invoice Print/PDF Preview
+
+### Invoice Preview Overlay
+
+Tapping the print icon on any invoice opens a full-page overlay (`#invoice-preview-overlay`) showing a beautifully formatted invoice document. Key design elements:
+
+- **Tri-color top bar** — navy → green → gold gradient (6px strip)
+- **Amber-bordered logo shield** — company logo in a dark-green square with gold border
+- Company name in large bold type
+- Invoice number in a dark chip
+- Status chip: Paid (green), Due (red), Overdue (bold red)
+- "From" (company) and "Billed To" (customer) side-by-side party blocks
+- Tax Invoice badge (appears only when VAT was applied)
+- Item table with zebra striping
+- Totals block (subtotal, VAT if any, amount paid, balance due / paid in full)
+- Payment terms text
+- Notes section
+- Contact details footer with phone numbers
+- Tri-color bottom bar
+
+### Payment Terms Text
+
+Dynamically generated based on the customer's `creditDays`:
+- 0 days → "Payment is due immediately upon receipt of this invoice."
+- N days → "Payment is due within N days of the invoice date (by [calculated date])."
+
+### Print Fix — No Duplicate Pages
+
+The print CSS carefully prevents common print bugs:
+```css
+@media print {
+  html, body { height: auto !important; min-height: 0 !important; }
+  #app-shell { display: block !important; min-height: 0 !important; }
+  body.inv-preview-open #app-shell { display: none !important; }
+  #invoice-preview-overlay { position: static !important; }
+}
+```
+
+Without these fixes, the invoice would print 3 times (because `position: fixed` elements repeat on every printed page) and leave blank trailing pages.
+
+---
+
+## 19. Responsive & Mobile Design
+
+### Breakpoints
+
+- `≤ 980px` — mobile layout: hide sidebar, show bottom nav, compact padding
+- `≤ 640px` — extra compact: smaller title, table stacking
+
+### Table Stacking (Mobile)
+
+Tables with the class `.tbl-wrap.stack-mobile` convert from a normal table to a card-per-row layout on small screens:
+
+```css
+/* Each td becomes a two-column flex row: label on left, value on right */
+.tbl-wrap.stack-mobile td::before {
+  content: attr(data-label);  /* Uses the data-label attribute from HTML */
+}
+```
+
+Each `<td>` has a `data-label` attribute matching its column header, so the stacked card is self-labeling.
+
+### Swipe Gesture Prevention
+
+Horizontal scrolling inside tables and the tab bar triggers iOS/Android's back/forward navigation gesture, which used to pop up an arrow overlay on top of the floating `+` button. Fixed with:
+
+```css
+.tbl-wrap, .tabs, .stmt-table-scroll, .dispatch-table-wrap {
+  overscroll-behavior-x: contain;
+  touch-action: pan-x pan-y;
+}
+html { overscroll-behavior-x: none; }
+```
+
+### Safe Area Insets
+
+The bottom navigation bar accounts for iPhone notch/home-indicator:
+```css
+padding: 6px 4px calc(6px + env(safe-area-inset-bottom));
+```
+
+### Toggle Components (Dispatch / Shop)
+
+The sale type toggle is a custom animated toggle — not a checkbox or radio button. On desktop it's inline-flex (compact). On mobile it's full-width and larger for easy tapping:
+
+```css
+@media (min-width: 701px) {
+  .saletype-toggle { display: inline-flex; }
+  .saletype-toggle .st-opt { padding: 7px 13px; }
+}
+```
+
+---
+
+## 20. PWA & Install Features
+
+### Service Worker
+
+Registered via:
+```javascript
+function registerServiceWorker() {
+  if ('serviceWorker' in navigator) {
+    navigator.serviceWorker.register('sw.js');
+  }
+}
+```
+
+The service worker (`sw.js`) is an external file. It enables:
+- Offline caching
+- Periodic Background Sync (for overdue alerts when app is closed)
+
+### Install Banner
+
+On browsers that support `beforeinstallprompt` (Chrome on Android/desktop), a banner appears at the top of the dashboard inviting the user to install the app. The banner:
+
+1. Captures the `beforeinstallprompt` event
+2. Shows a styled card with "Install App" button
+3. On tap, triggers `prompt()` and the browser install flow
+4. Hides permanently after dismissal
+
+On iOS Safari (which doesn't support `beforeinstallprompt`):
+- A different message is shown: "Tap the Share icon in Safari, then 'Add to Home Screen'"
+
+### Manifest
+
+References `manifest.json` (external file) for:
+- App name: "Al Farasha"
+- Icons: 192×192 and 512×512
+- Theme color: `#103b2c`
+- Display mode: standalone
+
+---
+
+## 21. Print System
+
+### Print Targets
+
+Only elements with class `.print-target` are visible when printing. Everything else is `visibility: hidden`.
+
+### Statement Print
+
+The statement document lives inside the app shell and uses `position: static`. On print, the app shell is preserved but non-statement elements are hidden.
+
+### Invoice Print
+
+Invoice preview lives in a `position: fixed` overlay. Printing requires the overlay to become `position: static` and the app shell behind it to be `display: none` — otherwise both the invoice and the app content behind it would print.
+
+### Preventing Blank Pages
+
+Every `min-height`, `height: 100vh`, and `overflow` on `html`, `body`, `#app-shell`, and `#main` is neutralized in `@media print` to prevent trailing blank pages.
+
+### A4 Layout for Statements
+
+```css
+@page { size: A4; margin: 10mm; }
+.stmt-table { table-layout: fixed !important; }
+.stmt-table th, .stmt-table td {
+  font-size: 9px !important;
+  white-space: normal !important;
+}
+```
+
+Column widths are fixed percentages tuned so all columns fit A4 width without clipping.
+
+### Force Background Colors to Print
+
+Chrome and Samsung Internet hide background colors/gradients by default when printing:
+```css
+* {
+  -webkit-print-color-adjust: exact !important;
+  print-color-adjust: exact !important;
+}
+```
+
+This ensures the invoice's navy header row, green payment rows, and red overdue indicators print in color.
+
+---
+
+## 22. Utility Functions & Core Logic
+
+### `roundMoney(n)`
+
+All monetary calculations route through this function:
+```javascript
+function roundMoney(n) {
+  return Math.round((Number(n) || 0) * 100) / 100;
+}
+```
+
+Plain JS floating point math (`0.1 + 0.2 = 0.30000000000000004`) can leave amounts a fraction of a fils off, which then silently mismatches later comparisons. All comparisons involving money use a 0.004 epsilon (`if (balance <= 0.004)`) to absorb rounding artifacts.
+
+### `fmtMoney(n)`
+
+Formats a number as AED currency with `toLocaleString`:
+```javascript
+'AED ' + n.toLocaleString('en-AE', { minimumFractionDigits: 2, maximumFractionDigits: 2 })
+```
+
+Uses `en-AE` locale so thousands separator and decimal format match UAE conventions.
+
+### `fmtDate(d)`
+
+Converts a `YYYY-MM-DD` string to human-readable `DD Mon YYYY` (e.g., `22 Jul 2025`). Uses `en-GB` locale to get the day-first format:
+```javascript
+new Date(d + 'T00:00:00').toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+```
+
+The `T00:00:00` suffix is critical — without it, parsing a date string in ISO format is treated as UTC by the browser, which can shift the date by a day in non-UTC timezones.
+
+### `escapeHtml(str)`
+
+Prevents XSS injection when inserting user-entered text into `innerHTML`:
+```javascript
+String(str).replace(/[&<>"']/g, m => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m]));
+```
+
+Used on every customer name, invoice number, item description, and note before it is inserted into any HTML.
+
+### `custDisplayName(cust)`
+
+Prefers Urdu name over English for all display purposes:
+```javascript
+return (cust.nameUr && cust.nameUr.trim()) ? cust.nameUr.trim() : cust.nameEn;
+```
+
+### `toast(msg, type)`
+
+Shows a non-blocking notification chip in the top-right corner:
+- Default: dark navy background (info/success)
+- `type='err'`: red background
+
+Toasts appear with a slide-in animation and auto-dismiss after 2.6 seconds.
+
+### Date Range Logic (`getDateRange`)
+
+Powers the quick range buttons across all list pages. Accepts:
+- `'today'`, `'thismonth'`, `'lastmonth'`, `'all'`
+- Or a numeric offset (1 = yesterday, 2 = 2 days ago, etc.)
+
+Returns `{ from: 'YYYY-MM-DD', to: 'YYYY-MM-DD' }`.
+
+### `setSalesRange` / `setPaymentsRange`
+
+Set the date filters on the Sales / Payments pages respectively. Called on app init with `'today'` so the pages always open showing today's data rather than all-time data.
+
+---
+
+## 23. Security Considerations
+
+### What is Protected
+- All business data is in localStorage and Firebase
+- The PIN prevents unauthorized access via the browser
+- Wrong PINs are logged and notified
+
+### What is Not Protected
+- The Firebase API key is embedded in the HTML. This is normal for client-side Firebase apps; Firebase security should be enforced via Database Rules on the Firebase console, not by hiding the key.
+- Anyone who opens the raw HTML file on the same device (where localStorage is shared) can see data without Firebase — the PIN protects the UI but not the raw localStorage data.
+- The PIN hash is SHA-256, which is not bcrypt — for a business app this is acceptable, but a dedicated secrets manager would be stronger.
+
+### XSS Prevention
+All user-input values are escaped via `escapeHtml()` before `innerHTML` insertion. This prevents any customer name, invoice note, or item description from being interpreted as HTML/JavaScript.
+
+---
+
+## 24. Known Design Decisions & Bug Fixes
+
+Several critical bugs were caught and fixed, with detailed comments preserved in the source:
+
+**1. Dispatch qtySold must not be written to Firebase from syncDispatchForDate**
+Writing derived data (sold quantity, computed from invoices) into Firebase caused it to be queued and then replayed from the offline queue with stale values, silently overwriting user edits. Fixed by making `qtySold` memory-only within that function.
+
+**2. Invoice preview printing 3 times**
+`position: fixed` elements repeat on every printed page in browsers. Fixed by resetting the overlay to `position: static` and hiding the app shell during invoice print.
+
+**3. Dispatch duplicate rows from sync echoes**
+Firebase sync listeners could fire multiple times on reconnect, creating multiple dispatch rows for the same item+date. Fixed by merging duplicates (summing `qtyIssued`) at the start of every `syncDispatchForDate` call.
+
+**4. Edge-swipe back/forward gesture covering the + button**
+iOS and Android browsers show a navigation gesture arrow on horizontal scroll near the screen edge. Fixed by setting `overscroll-behavior-x: contain` on all scrollable containers and `overscroll-behavior-x: none` on the html element.
+
+**5. Floating-point money drift**
+All calculations route through `roundMoney()` and comparisons use epsilon `0.004` to handle JavaScript's inherent floating-point imprecision.
+
+**6. Date parsing timezone shift**
+`new Date('2025-07-22')` is parsed as UTC midnight, which becomes the previous day in any timezone west of UTC. Fixed by always appending `'T00:00:00'` to force local time parsing.
+
+**7. Overdue notification loop**
+The overdue check used to run on every dashboard render. This caused repeated notifications for the same invoice. Fixed by:
+- Only running on startup (delayed 3 seconds) and every 15 minutes
+- Storing a `_overdueNotified` flag on each sale record, persisted to Firebase
+
+**8. Dispatch picker broken for item names with apostrophes**
+The old item picker used inline `onclick` with item names baked into the string (`onclick="select('O'Brien Steel')"`) which broke for names containing apostrophes or quotes. Fixed by switching to a single delegated event listener using `data-idx` to look up items from an array.
+
+---
+
+*Documentation compiled from `indexalfarasha6.html` — Al Farasha Al Khadhra Sales Ledger PWA*
+*Total source: ~5,155 lines of HTML, CSS, and JavaScript*
