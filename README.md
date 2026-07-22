@@ -29,6 +29,38 @@ Al Farasha Sales Ledger manages the full sales side of a **dispatch-and-shop hyb
 
 ## Architecture
 
+### System Architecture
+
+```mermaid
+flowchart TD
+    subgraph Clients["Client Devices"]
+        A[Phone]
+        B[Laptop]
+        C[Tablet]
+    end
+    A --> D[Al Farasha Sales Ledger<br/>Offline-First PWA]
+    B --> D
+    C --> D
+    D --> E[localStorage<br/>Primary Store + Cache]
+    D <--> F[(Firebase Realtime Database<br/>Optional Cloud Sync)]
+```
+
+### Offline Sync Flow
+
+```mermaid
+flowchart TD
+    A[User performs action<br/>e.g. new invoice] --> B[Update localStorage<br/>afkSalesLedgerDB_v1]
+    B --> C{Firebase reachable?<br/>.info/connected}
+    C -->|Yes| D[Write directly to Firebase]
+    C -->|No| E[Queue write<br/>afkSyncQueueV1]
+    E --> F["online" event fires]
+    F --> G[flushSyncQueue replays<br/>queued operations]
+    G --> D
+    D --> H[(Firebase Realtime Database)]
+```
+
+One deliberate design decision worth knowing: dispatch quantities sold (`qtySold`) are recalculated from invoices on every load rather than stored and synced — an earlier version stored this value directly, which let a stale offline-queued write silently overwrite a newer one after reconnect. See [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) for the full writeup.
+
 See [`docs/DOCUMENTATION.md`](docs/DOCUMENTATION.md) for the full data architecture, Firebase sync model, and offline-write flow.
 
 ## Documentation
